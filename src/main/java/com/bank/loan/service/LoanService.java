@@ -26,6 +26,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+
+/**
+ * Service class for managing loan operations including creation, payment processing, and loan status management.
+ * Handles business logic for:
+ * <ul>
+ *   <li>Loan application validation and creation with installment scheduling</li>
+ *   <li>Payment processing and credit limit management</li>
+ *   <li>Authorization checks for admin vs regular users</li>
+ *   <li>Credit limit calculations and validations</li>
+ * </ul>
+ *
+ * <p>All operations include proper transaction management and audit logging.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -36,6 +49,20 @@ public class LoanService {
     private final SecurityService securityService;
     private final LoanConfig loanConfig;
 
+
+    /**
+     * Creates a new loan based on the provided request. Validates the request parameters,
+     * calculates total loan amount with interest, creates installments, and updates customer's credit limit.
+     * Admin users can create loans for any customer, non-admin users are restricted to their own account.
+     *
+     * @param request Loan creation request containing principal amount, interest rate, installments count
+     * @return Persisted Loan entity with calculated total amount
+     * @throws CustomerNotFoundException if specified customer doesn't exist
+     * @throws InvalidInstallmentException if installments count is not in allowed values
+     * @throws InvalidInterestRateException if interest rate is outside configured bounds
+     * @throws CreditLimitExceededException if loan would exceed customer's credit limit
+     * @throws UnauthorizedAccessException if non-admin user tries to create loan for another customer
+     */
     @Transactional
     public Loan createLoan(LoanRequest request) {
         log.debug("LoanRequest is received: {}", request);
@@ -77,6 +104,18 @@ public class LoanService {
         }
     }
 
+
+    /**
+     * Processes a payment towards a loan, distributing the payment amount across pending installments
+     * within the payment window. Applies payments to installments in due date order.
+     *
+     * @param loanId ID of the loan to receive payment
+     * @param paymentAmount Total payment amount to distribute
+     * @return PaymentResult with details of applied payments and remaining funds
+     * @throws LoanNotFoundException if loan doesn't exist
+     * @throws UnauthorizedPaymentException if user isn't authorized to pay for this loan
+     * @throws NoInstallmentsDueException if no installments are currently payable
+     */
     @Transactional
     public PaymentResult processPayment(Long loanId, BigDecimal paymentAmount) {
         log.info("Processing payment: loanId={}, amount={}", loanId, paymentAmount);
@@ -115,6 +154,14 @@ public class LoanService {
         }
     }
 
+    /**
+     * Retrieves loans for a specific customer. Admin users can access any customer's loans,
+     * regular users can only access their own loans.
+     *
+     * @param customerId ID of the customer to query
+     * @return List of loans associated with the customer
+     * @throws UnauthorizedAccessException if non-admin user requests another customer's loans
+     */
     public List<Loan> getLoansByCustomerId(Long customerId) {
         log.info("Retrieving loans for customer id={}", customerId);
         if (!securityService.isAdmin() && !securityService.isOwnCustomer(customerId)) {
@@ -176,7 +223,7 @@ public class LoanService {
                 });
     }
 
-    Loan getLoan(Long loanId) {
+    protected Loan getLoan(Long loanId) {
         log.debug("Retrieving loan: id={}", loanId);
         return loanRepo.findById(loanId)
                 .orElseThrow(() -> {
@@ -317,6 +364,12 @@ public class LoanService {
         }
     }
 
+    /**
+     * Retrieves all loans in the system (admin-only access).
+     *
+     * @return Complete list of all loans
+     * @throws UnauthorizedAccessException if called by non-admin user
+     */
     public List<Loan> getAllLoans() {
         log.info("Retrieving all loans");
         if (!securityService.isAdmin()) {
@@ -328,6 +381,14 @@ public class LoanService {
         return loans;
     }
 
+    /**
+     * Retrieves installments for a specific loan. User must be either admin or the loan owner.
+     *
+     * @param loanId ID of the loan to query
+     * @return List of installments ordered by due date
+     * @throws LoanNotFoundException if loan doesn't exist
+     * @throws UnauthorizedAccessException if user isn't authorized to view these installments
+     */
     public List<LoanInstallment> getInstallmentsByLoanId(Long loanId) {
         log.info("Retrieving installments for loan id={}", loanId);
         getLoan(loanId);
