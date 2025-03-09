@@ -128,9 +128,9 @@ public class LoanService {
 
     private void validateLoanRequest(LoanRequest request) {
         log.debug("Validating loan request: {}", request);
+        validateCustomerExists(request.getCustomerId());
         validateInstallments(request.getInstallments());
         validateInterestRate(request.getInterestRate());
-        validateCustomerExists(request.getCustomerId());
         log.debug("Loan request validation passed");
     }
 
@@ -176,7 +176,7 @@ public class LoanService {
                 });
     }
 
-    private Loan getLoan(Long loanId) {
+    Loan getLoan(Long loanId) {
         log.debug("Retrieving loan: id={}", loanId);
         return loanRepo.findById(loanId)
                 .orElseThrow(() -> {
@@ -204,21 +204,19 @@ public class LoanService {
         }
     }
 
-    private Loan buildAndSaveLoan(LoanRequest request, Customer customer, BigDecimal totalAmount) {
+    protected Loan buildAndSaveLoan(LoanRequest request, Customer customer, BigDecimal totalAmount) {
         log.debug("Building and saving loan: customerId={}, amount={}, installments={}",
                 customer.getId(), totalAmount, request.getInstallments());
-        Loan loan = loanRepo.save(Loan.builder()
+        return loanRepo.save(Loan.builder()
                 .customer(customer)
                 .loanAmount(totalAmount)
                 .numberOfInstallments(request.getInstallments())
                 .createDate(LocalDate.now())
                 .isPaid(false)
                 .build());
-        log.debug("Loan saved: id={}", loan.getId());
-        return loan;
     }
 
-    private void createInstallments(Loan loan) {
+    void createInstallments(Loan loan) {
         log.debug("Creating installments for loan id={}", loan.getId());
         List<LoanInstallment> installments = new ArrayList<>();
         int numberOfInstallments = loan.getNumberOfInstallments();
@@ -264,7 +262,7 @@ public class LoanService {
                 customer.getId(), customer.getUsedCreditLimit());
     }
 
-    private List<LoanInstallment> getPendingInstallments(Long loanId) {
+    protected List<LoanInstallment> getPendingInstallments(Long loanId) {
         log.debug("Retrieving pending installments for loan id={}", loanId);
         List<LoanInstallment> allInstallments = loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loanId);
         log.debug("Found {} total installments for loan id={}", allInstallments.size(), loanId);
@@ -332,6 +330,7 @@ public class LoanService {
 
     public List<LoanInstallment> getInstallmentsByLoanId(Long loanId) {
         log.info("Retrieving installments for loan id={}", loanId);
+        getLoan(loanId);
         List<LoanInstallment> installments = loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loanId);
         log.debug("Retrieved {} installments for loan id={}", installments.size(), loanId);
         return installments;

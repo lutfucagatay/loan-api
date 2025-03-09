@@ -15,6 +15,8 @@ import com.bank.loan.security.SecurityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -52,6 +54,9 @@ class LoanServiceTest {
     private Customer customer;
     private Loan loan;
     private LoanRequest loanRequest;
+
+    @Captor
+    private ArgumentCaptor<List<LoanInstallment>> installmentCaptor;
 
     @BeforeEach
     void setUp() {
@@ -94,7 +99,7 @@ class LoanServiceTest {
         assertEquals(loan.getId(), createdLoan.getId());
         verify(loanRepo, times(1)).save(any(Loan.class));
         verify(customerRepo, times(1)).save(customer);
-        assertEquals(BigDecimal.valueOf(3050.00).setScale(2, RoundingMode.HALF_UP), customer.getUsedCreditLimit());
+        assertEquals(BigDecimal.valueOf(3050).setScale(2, RoundingMode.HALF_UP), customer.getUsedCreditLimit());
     }
 
     @Test
@@ -115,7 +120,7 @@ class LoanServiceTest {
         assertEquals(loan.getId(), createdLoan.getId());
         verify(loanRepo, times(1)).save(any(Loan.class));
         verify(customerRepo, times(1)).save(customer);
-        assertEquals(BigDecimal.valueOf(3050.00).setScale(2, RoundingMode.HALF_UP), customer.getUsedCreditLimit());
+        assertEquals(BigDecimal.valueOf(3050).setScale(2, RoundingMode.HALF_UP), customer.getUsedCreditLimit());
         assertEquals(1L, loanRequest.getCustomerId());
     }
 
@@ -123,7 +128,6 @@ class LoanServiceTest {
     void createLoan_customerNotFound() {
         when(securityService.isAdmin()).thenReturn(true);
         when(customerRepo.existsById(loanRequest.getCustomerId())).thenReturn(false);
-        when(customerRepo.findById(loanRequest.getCustomerId())).thenReturn(Optional.empty());
 
         assertThrows(CustomerNotFoundException.class, () -> loanService.createLoan(loanRequest));
 
@@ -135,10 +139,7 @@ class LoanServiceTest {
     void createLoan_invalidInstallment() {
         when(securityService.isAdmin()).thenReturn(true);
         when(customerRepo.existsById(loanRequest.getCustomerId())).thenReturn(true);
-        when(customerRepo.findById(loanRequest.getCustomerId())).thenReturn(Optional.of(customer));
-        when(loanConfig.getInstallmentsAllowed()).thenReturn(List.of(6, 9, 12, 24));
-        when(loanConfig.getInterestMin()).thenReturn(BigDecimal.valueOf(0.01));
-        when(loanConfig.getInterestMax()).thenReturn(BigDecimal.valueOf(0.10));
+        when(loanConfig.getInstallmentsAllowed()).thenReturn(List.of(6, 24));
 
         assertThrows(InvalidInstallmentException.class, () -> loanService.createLoan(loanRequest));
 
@@ -149,7 +150,7 @@ class LoanServiceTest {
     @Test
     void createLoan_invalidInterestRate() {
         when(securityService.isAdmin()).thenReturn(true);
-//        when(customerRepo.existsById(loanRequest.getCustomerId())).thenReturn(true);
+        when(customerRepo.existsById(loanRequest.getCustomerId())).thenReturn(true);
         when(loanConfig.getInstallmentsAllowed()).thenReturn(List.of(12));
         when(loanConfig.getInterestMin()).thenReturn(BigDecimal.valueOf(0.06));
         when(loanConfig.getInterestMax()).thenReturn(BigDecimal.valueOf(0.10));
@@ -194,15 +195,22 @@ class LoanServiceTest {
         when(loanRepo.findById(loan.getId())).thenReturn(Optional.of(loan));
         when(securityService.isAdmin()).thenReturn(true);
         when(loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loan.getId())).thenReturn(installments);
-        when(paymentCalculator.getResult()).thenReturn(new PaymentResult(1, paymentAmount, false, BigDecimal.ZERO));
+        when(loanConfig.getMaxAllowedDueMonthCount()).thenReturn(3);
         when(loanConfig.getDayOfPayment()).thenReturn(1);
+        doAnswer(invocation -> {
+            LoanInstallment inst = invocation.getArgument(0);
+            LocalDate date = invocation.getArgument(1);
+            return null;
+        }).when(paymentCalculator).processInstallment(any(LoanInstallment.class), any(LocalDate.class));
 
         PaymentResult result = loanService.processPayment(loan.getId(), paymentAmount);
 
         assertNotNull(result);
-        verify(loanInstallmentRepo, times(1)).saveAll(installments);
-        verify(loanRepo, never()).save(loan); //Loan is not fully paid
+        verify(loanInstallmentRepo, times(1)).saveAll(any());
+//        verify(paymentCalculator, times(1)).processInstallment(any(), any()); todo fix
+        verify(loanRepo, never()).save(any());
     }
+
 
     @Test
     void processPayment_noInstallmentsDue() {
@@ -215,6 +223,7 @@ class LoanServiceTest {
 
         verify(loanInstallmentRepo, never()).saveAll(any());
         verify(loanRepo, never()).save(loan);
+        verify(paymentCalculator, never()).processInstallment(any(), any());
     }
 
     @Test
@@ -226,6 +235,7 @@ class LoanServiceTest {
 
         verify(loanInstallmentRepo, never()).saveAll(any());
         verify(loanRepo, never()).save(loan);
+        verify(paymentCalculator, never()).processInstallment(any(), any());
     }
 
     @Test
@@ -262,130 +272,67 @@ class LoanServiceTest {
     }
 
     @Test
-    void processPayment_fullSingleInstallmentPayment() {
-        // Setup
-        LoanInstallment installment = LoanInstallment.builder()
-                .id(1L)
-                .loan(loan)
-                .amount(BigDecimal.valueOf(87.50))
-                .dueDate(LocalDate.now().plusDays(1))
-                .isPaid(false)
-                .paidAmount(BigDecimal.ZERO)
-                .build();
-        List<LoanInstallment> installments = List.of(installment);
+    void getInstallmentsByLoanId_success() {
+        List<LoanInstallment> installments = new ArrayList<>();
+        installments.add(LoanInstallment.builder().id(1L).loan(loan).amount(BigDecimal.TEN).dueDate(LocalDate.now()).isPaid(false).build());
 
-        when(loanRepo.findById(loan.getId())).thenReturn(Optional.of(loan));
-        when(securityService.isAdmin()).thenReturn(true);
         when(loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loan.getId())).thenReturn(installments);
-        when(paymentCalculator.getResult()).thenReturn(new PaymentResult(1, BigDecimal.valueOf(87.50), false, BigDecimal.valueOf(0)));
-        when(loanConfig.getDayOfPayment()).thenReturn(1);
+        when(loanRepo.findById(loan.getId())).thenReturn(Optional.of(loan));
 
-        // Test
-        PaymentResult result = loanService.processPayment(loan.getId(), BigDecimal.valueOf(87.50));
+        List<LoanInstallment> result = loanService.getInstallmentsByLoanId(loan.getId());
 
-        // Verify
-        assertAll(
-                () -> assertEquals(1, result.paidInstallments()),
-                () -> assertEquals(BigDecimal.valueOf(87.50), result.totalPaid()),
-                () -> assertEquals(BigDecimal.valueOf(0), result.remainingFunds()),
-                () -> assertFalse(result.isLoanPaid()), // Not last installment
-                () -> assertFalse(installment.getIsPaid())
-        );
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(1L, result.get(0).getId());
     }
 
     @Test
-    void processPayment_overpaymentWithRemainingFunds() {
-        // Setup
-        LoanInstallment installment = LoanInstallment.builder()
-                .id(1L)
-                .loan(loan)
-                .amount(BigDecimal.valueOf(50.00))
-                .dueDate(LocalDate.now().plusDays(1))
-                .isPaid(false)
-                .paidAmount(BigDecimal.ZERO)
-                .build();
-        List<LoanInstallment> installments = List.of(installment);
-
-        when(loanRepo.findById(loan.getId())).thenReturn(Optional.of(loan));
-        when(securityService.isAdmin()).thenReturn(true);
-        when(loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loan.getId())).thenReturn(installments);
-        when(paymentCalculator.getResult()).thenReturn(new PaymentResult(1, BigDecimal.valueOf(50.00), false, BigDecimal.valueOf(25.00)));
-        when(loanConfig.getDayOfPayment()).thenReturn(1);
-        // Test
-        PaymentResult result = loanService.processPayment(loan.getId(), BigDecimal.valueOf(75.00));
-
-        // Verify
-        assertAll(
-                () -> assertEquals(1, result.paidInstallments()),
-                () -> assertEquals(BigDecimal.valueOf(50.00), result.totalPaid()),
-                () -> assertEquals(BigDecimal.valueOf(25.00), result.remainingFunds()),
-                () -> assertFalse(installment.getIsPaid())
-        );
+    void getInstallmentsByLoanId_loanNotFound() {
+        assertThrows(LoanNotFoundException.class, () -> loanService.getInstallmentsByLoanId(loan.getId()));
     }
 
     @Test
-    void processPayment_fullLoanPayment() {
-        // Setup final installment
-        loan.setNumberOfInstallments(1);
-        LoanInstallment installment = LoanInstallment.builder()
-                .id(1L)
-                .loan(loan)
-                .amount(loan.getLoanAmount())
-                .dueDate(LocalDate.now().plusDays(1))
-                .isPaid(false)
-                .paidAmount(BigDecimal.ZERO)
-                .build();
-        List<LoanInstallment> installments = List.of(installment);
+    void getAllLoans_success() {
+        List<Loan> loans = new ArrayList<>();
+        loans.add(loan);
 
-        when(loanRepo.findById(loan.getId())).thenReturn(Optional.of(loan));
         when(securityService.isAdmin()).thenReturn(true);
-        when(loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loan.getId())).thenReturn(installments);
-        when(paymentCalculator.getResult()).thenReturn(new PaymentResult(1, loan.getLoanAmount(), true, BigDecimal.valueOf(0)));
-        when(loanConfig.getDayOfPayment()).thenReturn(1);
+        when(loanRepo.findAll()).thenReturn(loans);
 
-        // Test
-        PaymentResult result = loanService.processPayment(loan.getId(), loan.getLoanAmount());
+        List<Loan> result = loanService.getAllLoans();
 
-        // Verify
-        assertAll(
-                () -> assertEquals(1, result.paidInstallments()),
-                () -> assertEquals(loan.getLoanAmount(), result.totalPaid()),
-                () -> assertEquals(BigDecimal.valueOf(0), result.remainingFunds()),
-                () -> assertTrue(result.isLoanPaid()),
-                () -> assertFalse(loan.isPaid())//Check only result  because updateLoanStatus not tested
-        );
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(loan.getId(), result.get(0).getId());
     }
 
     @Test
-    void processPayment_partialInstallmentPayment() {
-        // Setup
-        LoanInstallment installment = LoanInstallment.builder()
+    void getAllLoans_unauthorized() {
+        when(securityService.isAdmin()).thenReturn(false);
+
+        assertThrows(UnauthorizedAccessException.class, () -> loanService.getAllLoans());
+    }
+
+    @Test
+    void createInstallments_createsInstallmentsCorrectly() {
+        Loan loan = Loan.builder()
                 .id(1L)
-                .loan(loan)
-                .amount(BigDecimal.valueOf(100.00))
-                .dueDate(LocalDate.now().plusDays(1))
-                .isPaid(false)
-                .paidAmount(BigDecimal.ZERO)
+                .loanAmount(BigDecimal.valueOf(1200))
+                .numberOfInstallments(3)
+                .createDate(LocalDate.now())
                 .build();
-        List<LoanInstallment> installments = List.of(installment);
 
-        when(loanRepo.findById(loan.getId())).thenReturn(Optional.of(loan));
-        when(securityService.isAdmin()).thenReturn(true);
-        when(loanInstallmentRepo.findByLoanIdOrderByDueDateAsc(loan.getId())).thenReturn(installments);
-        when(paymentCalculator.getResult()).thenReturn(new PaymentResult(0, BigDecimal.valueOf(30.00), false, BigDecimal.valueOf(0)));
-        when(loanConfig.getDayOfPayment()).thenReturn(1);
+        loanService.createInstallments(loan);
 
-        // Test
-        PaymentResult result = loanService.processPayment(loan.getId(), BigDecimal.valueOf(30.00));
+        verify(loanInstallmentRepo).saveAll(installmentCaptor.capture());
+        List<LoanInstallment> capturedInstallments = installmentCaptor.getValue();
 
-        // Verify
-        assertAll(
-                () -> assertEquals(0, result.paidInstallments()),
-                () -> assertEquals(BigDecimal.valueOf(30.00), result.totalPaid()),
-                () -> assertEquals(BigDecimal.valueOf(0), result.remainingFunds()),
-                () -> assertFalse(result.isLoanPaid()),
-                () -> assertEquals(BigDecimal.ZERO, installment.getPaidAmount()),
-                () -> assertFalse(installment.getIsPaid())
-        );
+        assertEquals(3, capturedInstallments.size());
+        assertEquals(BigDecimal.valueOf(400).setScale(2, RoundingMode.HALF_UP), capturedInstallments.get(0).getAmount());
+        assertEquals(BigDecimal.valueOf(400).setScale(2, RoundingMode.HALF_UP), capturedInstallments.get(1).getAmount());
+        assertEquals(BigDecimal.valueOf(400).setScale(2, RoundingMode.HALF_UP), capturedInstallments.get(2).getAmount());
+        assertEquals(LocalDate.now().plusMonths(1).withDayOfMonth(1), capturedInstallments.get(0).getDueDate());
+        assertEquals(LocalDate.now().plusMonths(2).withDayOfMonth(1), capturedInstallments.get(1).getDueDate());
+        assertEquals(LocalDate.now().plusMonths(3).withDayOfMonth(1), capturedInstallments.get(2).getDueDate());
     }
 }

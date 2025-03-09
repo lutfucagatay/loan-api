@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 
 @Entity
@@ -25,7 +26,7 @@ public class LoanInstallment {
     @JsonBackReference("loan-installments")
     private Loan loan;
     private BigDecimal amount;
-    private BigDecimal paidAmount = BigDecimal.valueOf(0.0);
+    private BigDecimal paidAmount = BigDecimal.valueOf(0).setScale(2, RoundingMode.HALF_UP);
     private LocalDate dueDate;
     private LocalDate paymentDate;
     private Boolean isPaid = false;

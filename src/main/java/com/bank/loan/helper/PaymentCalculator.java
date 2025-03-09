@@ -5,6 +5,7 @@ import com.bank.loan.model.LoanInstallment;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
@@ -26,7 +27,7 @@ public class PaymentCalculator {
      */
     public PaymentCalculator(BigDecimal paymentAmount) {
         log.debug("Initializing PaymentCalculator with amount: {}", paymentAmount);
-        this.remainingFunds = paymentAmount;
+        this.remainingFunds = paymentAmount.setScale(2, RoundingMode.HALF_UP);
     }
 
     /**
@@ -56,7 +57,7 @@ public class PaymentCalculator {
             totalPaid = totalPaid.add(requiredPayment);
             paidInstallments++;
 
-            installment.setPaidAmount(requiredPayment);
+            installment.setPaidAmount(requiredPayment.setScale(2, RoundingMode.HALF_UP));
             installment.setPaymentDate(paymentDate);
             installment.setIsPaid(true);
             log.debug("Installment id={} marked as paid. Remaining funds: {}, Total paid: {}",
@@ -105,7 +106,7 @@ public class PaymentCalculator {
         return new PaymentResult(
                 paidInstallments,
                 totalPaid,
-                remainingFunds.equals(BigDecimal.ZERO),
+                remainingFunds.setScale(2, RoundingMode.HALF_UP).equals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)),
                 remainingFunds
         );
     }
