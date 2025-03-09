@@ -1,4 +1,4 @@
-package com.bank.loan.service;
+package com.bank.loan.security;
 
 import com.bank.loan.exception.CustomerNotFoundException;
 import com.bank.loan.exception.UnauthenticatedUserException;

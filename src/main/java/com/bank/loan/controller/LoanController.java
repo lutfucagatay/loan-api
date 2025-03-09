@@ -5,6 +5,8 @@ import com.bank.loan.dto.PaymentResult;
 import com.bank.loan.model.Loan;
 import com.bank.loan.model.LoanInstallment;
 import com.bank.loan.service.LoanService;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,7 +29,7 @@ public class LoanController {
 
     @GetMapping("/customer/{customerId}")
     @PreAuthorize("hasRole('ADMIN') or @securityService.isOwnCustomer(#customerId)")
-    public ResponseEntity<List<Loan>> getLoansByCustomer(@PathVariable Long customerId) {
+    public ResponseEntity<List<Loan>> getLoansByCustomer(@PathVariable @NotNull Long customerId) {
         return ResponseEntity.ok(loanService.getLoansByCustomerId(customerId));
     }
 
@@ -39,13 +41,15 @@ public class LoanController {
 
     @PostMapping("/{loanId}/pay")
     @PreAuthorize("hasRole('ADMIN') or @securityService.hasAccessToLoan(#loanId)")
-    public ResponseEntity<PaymentResult> payLoan(@PathVariable Long loanId, @RequestParam BigDecimal amount) {
+    public ResponseEntity<PaymentResult> payLoan(@PathVariable @NotNull Long loanId,
+                                                 @RequestParam @PositiveOrZero(message = "Amount must be non-negative")
+                                                 BigDecimal amount) {
         return ResponseEntity.ok(loanService.processPayment(loanId, amount));
     }
 
     @GetMapping("/{loanId}/installments")
     @PreAuthorize("hasRole('ADMIN') or @securityService.hasAccessToLoan(#loanId)")
-    public ResponseEntity<List<LoanInstallment>> getInstallments(@PathVariable Long loanId) {
+    public ResponseEntity<List<LoanInstallment>> getInstallments(@PathVariable @NotNull Long loanId) {
         return ResponseEntity.ok(loanService.getInstallmentsByLoanId(loanId));
     }
 }

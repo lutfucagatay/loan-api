@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public record PaymentResult(
         int paidInstallments,
         BigDecimal totalPaid,
-        boolean isLoanPaid
+        boolean isLoanPaid,
+        BigDecimal remainingFunds
 ) {
 }

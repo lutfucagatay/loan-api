@@ -1,5 +1,6 @@
 package com.bank.loan.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +20,9 @@ public class LoanInstallment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "loan_id")
+    @JsonBackReference("loan-installments")
     private Loan loan;
     private BigDecimal amount;
     private BigDecimal paidAmount = BigDecimal.valueOf(0.0);

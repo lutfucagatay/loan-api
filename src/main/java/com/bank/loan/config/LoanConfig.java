@@ -20,11 +20,15 @@ import java.util.List;
 @Validated
 public class LoanConfig {
     @NotNull
-    @DecimalMin(value = "0.01", message = "Interest rate must be within the permitted range")
+    @DecimalMin(value = "0.1", message = "Interest rate must be within the permitted range")
     private BigDecimal interestMin;
     @NotNull
-    @DecimalMax(value = "1.0", message = "Interest rate must be within the permitted range")
+    @DecimalMax(value = "0.5", message = "Interest rate must be within the permitted range")
     private BigDecimal interestMax;
     @NotEmpty
     private List<Integer> installmentsAllowed;
+    @DecimalMax(value = "30")
+    private int dayOfPayment;
+    @DecimalMax(value = "12")
+    private int maxAllowedDueMonthCount;
 }
