@@ -230,3 +230,15 @@ GET /loans/{loanId}/installments
 
 **Interest Rates**:
 - Range: 10% (0.1) to 50% (0.5)
+
+## Improvement Suggestions
+
+1. Reading user credentials from some secure external source (e.g., a database).
+2. Using a different authentication mechanism (e.g., JWT).
+3. Implementing more advanced payment processing logic.
+4. Adding more error handling and validation.
+5. Adding more unit and integration tests.
+6. Divide LoanService into smaller classes for better organization.
+7. Create testing containers for Docker.
+8. Add throttling for API requests.
+9. Add caching for frequently accessed data.
