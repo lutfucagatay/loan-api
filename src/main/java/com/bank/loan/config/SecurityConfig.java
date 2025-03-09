@@ -1,5 +1,6 @@
 package com.bank.loan.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,6 +18,20 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Value("${ADMIN_USERNAME}")
+    private String adminUsername;
+
+    @Value("${ADMIN_PASSWORD}")
+    private String adminPassword;
+
+    @Value("${CUSTOMER_USERNAME}")
+    private String customerUsername;
+
+    @Value("${CUSTOMER_PASSWORD}")
+    private String customerPassword;
+
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -40,17 +55,15 @@ public class SecurityConfig {
 
     @Bean
     public InMemoryUserDetailsManager userDetailsService() {
-        // ADMIN user (can manage all)
         UserDetails admin = User.builder()
-                .username("admin")
-                .password(passwordEncoder().encode("admin"))
+                .username(adminUsername)
+                .password(passwordEncoder().encode(adminPassword))
                 .roles("ADMIN")
                 .build();
 
-        // CUSTOMER user (linked to a Customer entity)
         UserDetails customer1 = User.builder()
-                .username("john") // Matches Customer.username in DB
-                .password(passwordEncoder().encode("password"))
+                .username(customerUsername) // Matches Customer.username in DB
+                .password(passwordEncoder().encode(customerPassword))
                 .roles("CUSTOMER")
                 .build();
 
