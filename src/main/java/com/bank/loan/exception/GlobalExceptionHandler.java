@@ -33,8 +33,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UnauthorizedAccessException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccess(UnauthorizedAccessException ex) {
-        log.error("Unauthorized access attempt: {}", ex.getMessage());
         return buildResponse("Access denied", "You don't have permission for this operation", HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(NoInstallmentsDueException.class)
+    public ResponseEntity<ErrorResponse> handleNoInstallmentsDue(NoInstallmentsDueException ex) {
+        return buildResponse("No installments due", ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)

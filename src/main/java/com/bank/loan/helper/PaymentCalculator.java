@@ -75,7 +75,7 @@ public class PaymentCalculator {
      * @param paymentDate The date when the payment is made
      * @return The effective payment amount
      */
-    private BigDecimal calculateEffectivePayment(LoanInstallment installment, LocalDate paymentDate) {
+    BigDecimal calculateEffectivePayment(LoanInstallment installment, LocalDate paymentDate) {
         long daysDifference = ChronoUnit.DAYS.between(paymentDate, installment.getDueDate());
         log.debug("Days difference for installment id={}: {} days", installment.getId(), daysDifference);
         BigDecimal adjustment = installment.getAmount()
