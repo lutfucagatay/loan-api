@@ -216,6 +216,10 @@ GET /loans/{loanId}/installments
 
 ---
 
+### Swagger UI Documentation
+
+You can access the Swagger UI documentation at [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+
 ### Data Formats
 
 **Monetary Values**:
